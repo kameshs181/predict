@@ -11,7 +11,7 @@ st.title("🌍 OpenWeatherMap: Current Weather & 5-Day Forecast")
 
 # 🔑 Load API key
 try:
-    API_KEY = st.secrets["API_KEY"]
+    API_KEY ="c1fed68d02f226d73e811e6cce276bf6"
     st.success("✅ API Key loaded successfully")
 except Exception:
     st.error("❌ Could not load API Key from secrets. Please add API_KEY in Streamlit Cloud → Secrets")
