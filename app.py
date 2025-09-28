@@ -3,18 +3,16 @@ import requests
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
-import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Weather + Forecast App", page_icon="🌦️", layout="centered")
+st.set_page_config(page_title="Weather Forecast App", page_icon="🌦️", layout="centered")
 
-st.title("🌍 OpenWeatherMap: Current Weather & 5-Day Forecast")
+st.title("🌍 Weather & 5-Day Forecast (OpenWeatherMap)")
 
-# 🔑 Load API key
+# 🔑 Load API Key
 try:
     API_KEY = st.secrets["API_KEY"]
-    st.success("✅ API Key loaded successfully")
 except Exception:
-    st.error("❌ Could not load API Key from secrets. Please add API_KEY in Streamlit Cloud → Secrets")
+    st.error("❌ API key missing. Please add API_KEY in Streamlit Cloud → Settings → Secrets")
     st.stop()
 
 # 🌍 Input city
@@ -22,12 +20,8 @@ city = st.text_input("Enter city name:", "Chennai")
 
 if st.button("Get Weather & Forecast"):
     # 🌦️ Current Weather
-    URL_CURRENT = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
-    response = requests.get(URL_CURRENT).json()
-
-    # 🔍 Debug: Show raw response
-    st.subheader("🔍 API Raw Response (Current)")
-    st.json(response)
+    url_current = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
+    response = requests.get(url_current).json()
 
     if response.get("cod") == 200:
         # Extract details
@@ -39,10 +33,10 @@ if st.button("Get Weather & Forecast"):
         lon = response['coord']['lon']
 
         st.subheader(f"✅ Current Weather in {city}")
-        st.write(f"🌡️ Temp: {temp} °C")
-        st.write(f"💧 Humidity: {humidity}%")
-        st.write(f"🌧️ Rainfall (last 1h): {rain} mm")
-        st.write(f"☁️ Condition: {weather}")
+        st.metric("🌡️ Temperature (°C)", f"{temp:.1f}")
+        st.metric("💧 Humidity (%)", f"{humidity}")
+        st.metric("🌧️ Rainfall (last 1h)", f"{rain} mm")
+        st.write(f"☁️ Condition: **{weather}**")
 
         # 🚨 Flood risk
         if rain > 50 or humidity > 85:
@@ -62,9 +56,9 @@ if st.button("Get Weather & Forecast"):
         st_folium(m, width=700, height=500)
 
         # 📊 5-Day Forecast
-        st.subheader("📊 5-Day Forecast (3h intervals)")
-        URL_FORECAST = f"http://api.openweathermap.org/data/2.5/forecast?q={city}&appid={API_KEY}&units=metric"
-        forecast = requests.get(URL_FORECAST).json()
+        st.subheader("📊 5-Day Forecast (every 3 hours)")
+        url_forecast = f"http://api.openweathermap.org/data/2.5/forecast?q={city}&appid={API_KEY}&units=metric"
+        forecast = requests.get(url_forecast).json()
 
         if forecast.get("cod") == "200":
             df = pd.DataFrame([{
@@ -75,17 +69,13 @@ if st.button("Get Weather & Forecast"):
             } for item in forecast["list"]])
 
             df["datetime"] = pd.to_datetime(df["datetime"])
+            df = df.set_index("datetime")
 
-            # Temperature trend
-            st.line_chart(df.set_index("datetime")[["temp"]])
+            st.line_chart(df[["temp"]], height=300, use_container_width=True)
+            st.bar_chart(df[["rain"]], height=300, use_container_width=True)
 
-            # Rainfall trend
-            st.bar_chart(df.set_index("datetime")[["rain"]])
-
-            # Show data table
-            st.dataframe(df.head(15))
+            st.dataframe(df.head(12))  # show first 12 intervals (~1.5 days)
         else:
-            st.error("❌ Forecast data not available")
-
+            st.warning("⚠️ Forecast data not available.")
     else:
         st.error(f"❌ API Error: {response.get('message', 'Unknown error')}")
