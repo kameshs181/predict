@@ -63,23 +63,40 @@ if city and lat and lon:
         else:
             st.info("✅ No flood risk detected.")
 
-        # --- Interactive Map ---
-        st.subheader("🗺️ City Location")
-        m = folium.Map(location=[lat, lon], zoom_start=10)
+        # --- Interactive Map with Weather Layers ---
+        st.subheader("🗺️ City Location & Live Weather Map")
+        m = folium.Map(location=[lat, lon], zoom_start=6)
 
-        # 🛰️ Satellite
+        # Base maps
+        folium.TileLayer("OpenStreetMap", name="OSM").add_to(m)
         folium.TileLayer(
             tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
             attr="Esri", name="Esri Satellite", overlay=False, control=True
         ).add_to(m)
-
-        # 🏔️ Terrain
         folium.TileLayer(
             tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
             attr="Esri", name="Esri Terrain", overlay=False, control=True
         ).add_to(m)
 
-        # Marker with icon popup
+        # 🌥️ Clouds overlay
+        folium.TileLayer(
+            tiles=f"https://tile.openweathermap.org/map/clouds_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+            attr="OpenWeatherMap", name="Clouds", overlay=True, control=True, opacity=0.6
+        ).add_to(m)
+
+        # 🌧️ Precipitation overlay
+        folium.TileLayer(
+            tiles=f"https://tile.openweathermap.org/map/precipitation_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+            attr="OpenWeatherMap", name="Precipitation", overlay=True, control=True, opacity=0.6
+        ).add_to(m)
+
+        # 💨 Wind overlay
+        folium.TileLayer(
+            tiles=f"https://tile.openweathermap.org/map/wind_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+            attr="OpenWeatherMap", name="Wind", overlay=True, control=True, opacity=0.6
+        ).add_to(m)
+
+        # Marker with popup
         popup_html = f"""
             <div style="text-align:center;">
                 <h4>{city}</h4>
@@ -97,6 +114,7 @@ if city and lat and lon:
             icon=folium.Icon(color="blue", icon="cloud")
         ).add_to(m)
 
+        # Layer control
         folium.LayerControl().add_to(m)
         st_folium(m, width=700, height=500)
 
@@ -121,7 +139,7 @@ if city and lat and lon:
             st.line_chart(df[["temp"]], height=300, use_container_width=True)
             st.bar_chart(df[["rain"]], height=300, use_container_width=True)
 
-            # Add weather icons inline
+            # Add icons in table
             def add_icon(row):
                 return f'<img src="http://openweathermap.org/img/wn/{row["icon"]}.png" width="35"> {row["condition"].title()}'
 
