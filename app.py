@@ -9,7 +9,7 @@ st.title("🌍 OpenWeatherMap + Map (Debug Mode)")
 
 # 🔑 Load API key safely
 try:
-    API_KEY = st.secrets["API_KEY"]
+    API_KEY = st.secrets["apikey.txt"]
     st.success("✅ API Key loaded successfully")
 except Exception as e:
     st.error("❌ Could not load API Key from secrets")
