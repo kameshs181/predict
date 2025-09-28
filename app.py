@@ -11,7 +11,7 @@ st.title("🌍 OpenWeatherMap Forecast App with Interactive Map")
 city = st.text_input("Enter city name:", "Chennai")
 
 # Load API key securely from Streamlit Secrets
-API_KEY = st.secrets["c1fed68d02f226d73e811e6cce276bf6"]
+API_KEY ="c1fed68d02f226d73e811e6cce276bf6"
 
 if st.button("Get Weather"):
     URL = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric"
