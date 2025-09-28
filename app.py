@@ -5,7 +5,7 @@ import folium
 from streamlit_folium import st_folium
 
 st.set_page_config(page_title="Weather Forecast App", page_icon="🌦️", layout="centered")
-st.title("🌍 Intelligent Weather & Forecast System")
+st.title("🌍 Intelligent Forecast System")
 
 # 🔑 Load API Key
 try:
