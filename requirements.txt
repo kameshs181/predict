@@ -4,3 +4,4 @@ pandas
 pydeck
 streamlit-lottie
 streamlit-autorefresh
+pydeck>=0.8.0
