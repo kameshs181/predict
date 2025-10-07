@@ -6,10 +6,10 @@ from backend.utils import flood_risk_alert
 import hashlib
 import os
 
-# -------------------- APP CONFIG --------------------
-st.set_page_config(page_title="AI Weather Forecast", layout="wide")
+# -------------------- CONFIG --------------------
+st.set_page_config(page_title="AI Weather Dashboard", layout="wide")
 
-# -------------------- CUSTOM CSS --------------------
+# -------------------- CSS --------------------
 st.markdown("""
 <style>
 body {background-color: #f0f2f6; font-family: 'Segoe UI', sans-serif;}
@@ -34,7 +34,7 @@ def add_user(email, password, users_df):
 
 # -------------------- LOAD USERS --------------------
 if not os.path.exists("users.csv"):
-    users_df = pd.DataFrame(columns=["email", "password"])
+    users_df = pd.DataFrame(columns=["email","password"])
     users_df.to_csv("users.csv", index=False)
 else:
     users_df = pd.read_csv("users.csv")
@@ -45,14 +45,14 @@ choice = st.sidebar.radio("Navigate", menu)
 
 # -------------------- HOME --------------------
 if choice == "Home":
-    st.image("assets/logo.png", width=150)
+    st.image("https://i.ibb.co/2kKjv6F/logo.png", width=150)
     st.title("🌦️ AI Weather & Disaster Forecast")
     st.markdown("""
     Welcome to the AI-Driven Weather Forecast & Disaster Alert System.  
     Navigate through slides using the sidebar to access current weather, disaster alerts, interactive maps, and forecasts.
     """)
 
-# -------------------- SIGN UP / LOGIN --------------------
+# -------------------- LOGIN / SIGN UP --------------------
 elif choice == "Sign Up / Login":
     st.subheader("🔒 Sign Up / Login")
     auth_choice = st.radio("Choose Action", ["Login", "Sign Up"])
@@ -76,7 +76,7 @@ elif choice == "Sign Up / Login":
                 if success: st.success("✅ Account created! Please log in.")
                 else: st.error("❌ User already exists")
 
-# -------------------- WEATHER DASHBOARD / MAP / FORECAST --------------------
+# -------------------- WEATHER DASHBOARD --------------------
 else:
     if "logged_in" not in st.session_state or not st.session_state.logged_in:
         st.warning("⚠️ Please log in to access this section.")
@@ -98,14 +98,12 @@ else:
 
         if current:
             if choice == "Current Weather":
-                # Metrics cards
                 col1, col2, col3, col4 = st.columns(4)
                 with col1: st.markdown(f'<div class="card"><h4>🌡️ Temp</h4><p class="metric-text">{current["temp"]}°C</p></div>', unsafe_allow_html=True)
                 with col2: st.markdown(f'<div class="card"><h4>💧 Humidity</h4><p class="metric-text">{current["humidity"]}%</p></div>', unsafe_allow_html=True)
                 with col3: st.markdown(f'<div class="card"><h4>🌧️ Rain</h4><p class="metric-text">{current.get("rain",0)} mm</p></div>', unsafe_allow_html=True)
                 with col4: st.markdown(f'<div class="card"><h4>💨 Wind</h4><p class="metric-text">{current.get("wind",0)} m/s</p></div>', unsafe_allow_html=True)
 
-                # Disaster alerts
                 st.subheader("🚨 Disaster Alerts")
                 flood_alert = flood_risk_alert(current["humidity"], current["rain"])
                 if "High" in flood_alert: st.error(flood_alert)
@@ -135,3 +133,11 @@ else:
 
         else:
             st.error("❌ City not found.")
+
+# -------------------- ABOUT PAGE --------------------
+if choice == "About":
+    st.subheader("📖 About This Project")
+    st.markdown("""
+    Developed by [Your Name].  
+    AI-Driven Weather Forecast & Disaster Alert System using OpenWeatherMap API and Streamlit.
+    """)
