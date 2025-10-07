@@ -1,157 +1,172 @@
 import streamlit as st
-import folium
 import pandas as pd
-from streamlit_folium import st_folium
+import pydeck as pdk
 from backend.weather_service import WeatherService
 from backend.utils import flood_risk_alert
+import hashlib
+import os
 
-# -------------------------------------------------------------
-# Streamlit Page Setup
-# -------------------------------------------------------------
-st.set_page_config(page_title="AI Weather & Forecast System 🌦️", page_icon="🌍", layout="centered")
-st.title("🌍 Intelligent AI-Driven Weather Forecast & Alert System")
+# -------------------- APP CONFIG --------------------
+st.set_page_config(page_title="AI Weather Forecast", layout="wide")
 
-# -------------------------------------------------------------
-# Load API Key
-# -------------------------------------------------------------
-try:
-    API_KEY = st.secrets["API_KEY"]
-except Exception:
-    st.error("❌ Could not load API Key. Please add API_KEY in Streamlit Cloud → Settings → Secrets")
+# -------------------- HELPER FUNCTIONS --------------------
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def check_credentials(email, password, users_df):
+    hashed = hash_password(password)
+    user_row = users_df[users_df['email'] == email]
+    if not user_row.empty and user_row.iloc[0]['password'] == hashed:
+        return True
+    return False
+
+def add_user(email, password, users_df):
+    hashed = hash_password(password)
+    if email in users_df['email'].values:
+        return False  # User already exists
+    users_df.loc[len(users_df)] = [email, hashed]
+    users_df.to_csv("users.csv", index=False)
+    return True
+
+# -------------------- LOAD USERS --------------------
+if not os.path.exists("users.csv"):
+    users_df = pd.DataFrame(columns=["email", "password"])
+    users_df.to_csv("users.csv", index=False)
+else:
+    users_df = pd.read_csv("users.csv")
+
+# -------------------- LOGIN / SIGNUP --------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+auth_choice = st.radio("Login or Sign Up", ["Login", "Sign Up"])
+
+if auth_choice == "Login":
+    st.subheader("🔒 Login")
+    st.text_input("Email", key="email")
+    st.text_input("Password", type="password", key="password")
+    if st.button("Sign In"):
+        if check_credentials(st.session_state.email, st.session_state.password, users_df):
+            st.session_state.logged_in = True
+            st.success("✅ Login successful!")
+        else:
+            st.error("❌ Invalid email or password")
+    st.stop() if not st.session_state.logged_in else None
+
+else:  # Sign Up
+    st.subheader("📝 Sign Up")
+    st.text_input("Email", key="new_email")
+    st.text_input("Password", type="password", key="new_password")
+    st.text_input("Confirm Password", type="password", key="confirm_password")
+    if st.button("Register"):
+        if st.session_state.new_password != st.session_state.confirm_password:
+            st.error("❌ Passwords do not match")
+        else:
+            success = add_user(st.session_state.new_email, st.session_state.new_password, users_df)
+            if success:
+                st.success("✅ Account created! Please log in.")
+            else:
+                st.error("❌ User already exists")
     st.stop()
 
-# -------------------------------------------------------------
+# -------------------- MAIN APP --------------------
+st.title("🌦️ AI-Driven Weather Forecast & Disaster Alert System")
+
+# -------------------- LOAD API KEY --------------------
+try:
+    API_KEY = st.secrets["API_KEY"]
+except KeyError:
+    st.error("❌ Could not load API Key. Add API_KEY in Streamlit Cloud → Secrets.")
+    st.stop()
+
 # Initialize Weather Service
-# -------------------------------------------------------------
-service = WeatherService(API_KEY)
+weather_service = WeatherService(API_KEY)
 
-# -------------------------------------------------------------
-# User Input
-# -------------------------------------------------------------
-city_query = st.text_input("🔍 Enter a city name:", "Chennai")
+# -------------------- USER INPUT --------------------
+city = st.text_input("🏙️ Enter City Name", "Chennai")
 
-if city_query:
-    lat, lon, city = service.get_coordinates(city_query)
+if st.button("Get Weather Info"):
+    with st.spinner("Fetching weather data..."):
+        lat, lon, city_name = weather_service.get_coordinates(city)
 
-    if lat and lon:
-        # -----------------------------------------------------
-        # Current Weather
-        # -----------------------------------------------------
-        current = service.get_current_weather(lat, lon)
+        if lat and lon:
+            current = weather_service.get_current_weather(lat, lon)
+            forecast = weather_service.get_forecast(lat, lon)
 
-        if current:
-            icon_url = f"http://openweathermap.org/img/wn/{current['icon']}@2x.png"
-            weather = current["weather"].title()
-            temp = current["temp"]
-            humidity = current["humidity"]
-            rain = current["rain"]
+            if current:
+                # -------------------- CURRENT WEATHER --------------------
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader(f"📍 {city_name}")
+                    st.metric("🌡️ Temperature (°C)", f"{current['temp']}°C")
+                    st.metric("💧 Humidity (%)", f"{current['humidity']}%")
+                    st.write(f"**Condition:** {current['weather'].title()}")
+                    st.image(f"http://openweathermap.org/img/wn/{current['icon']}@2x.png")
 
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                st.image(icon_url, width=80)
-            with col2:
-                st.subheader(f"✅ Current Weather in {city}")
-                st.write(f"☁️ {weather}")
+                with col2:
+                    st.subheader("🚨 Disaster Alert Panel")
+                    flood_alert = flood_risk_alert(current["humidity"], current["rain"])
+                    st.write(f"**Flood Risk:** {flood_alert}")
 
-            st.metric("🌡️ Temperature (°C)", f"{temp:.1f}")
-            st.metric("💧 Humidity (%)", f"{humidity}")
-            st.metric("🌧️ Rainfall (last 1h)", f"{rain} mm")
+                    wind_speed = current["wind"]
+                    if wind_speed > 20:
+                        st.warning(f"⚠️ Strong Winds Detected: {wind_speed} m/s")
+                    else:
+                        st.success(f"✅ Wind Speed Normal: {wind_speed} m/s")
 
-            # 🚨 Flood Risk Alert
-            alert = flood_risk_alert(humidity, rain)
-            if "🚨" in alert:
-                st.error(alert)
-            elif "⚠️" in alert:
-                st.warning(alert)
+                    temp = current["temp"]
+                    if temp > 40:
+                        st.warning("🔥 Extreme Heat Alert!")
+                    elif temp < 5:
+                        st.warning("❄️ Extreme Cold Alert!")
+                    else:
+                        st.success("🌡️ Temperature Normal")
+
+                # -------------------- INTERACTIVE MAP --------------------
+                st.subheader("🗺️ Live Weather Map (Clouds + Wind + Rain)")
+
+                layers = []
+                layers.append(pdk.Layer(
+                    "TileLayer",
+                    data=None,
+                    tile_size=256,
+                    get_tile_url=f"https://tile.openweathermap.org/map/clouds_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                    opacity=0.5,
+                ))
+                layers.append(pdk.Layer(
+                    "TileLayer",
+                    data=None,
+                    tile_size=256,
+                    get_tile_url=f"https://tile.openweathermap.org/map/wind_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                    opacity=0.6,
+                ))
+                layers.append(pdk.Layer(
+                    "TileLayer",
+                    data=None,
+                    tile_size=256,
+                    get_tile_url=f"https://tile.openweathermap.org/map/precipitation_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                    opacity=0.7,
+                ))
+                layers.append(pdk.Layer(
+                    "ScatterplotLayer",
+                    data=pd.DataFrame([{"lat": lat, "lon": lon}]),
+                    get_position=["lon", "lat"],
+                    get_color=[255, 0, 0],
+                    get_radius=7000,
+                ))
+
+                st.pydeck_chart(pdk.Deck(
+                    map_style="mapbox://styles/mapbox/satellite-streets-v12",
+                    initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=6, pitch=45),
+                    layers=layers,
+                ))
+
+                # -------------------- FORECAST --------------------
+                if forecast is not None:
+                    st.subheader("📈 5-Day Forecast Trend")
+                    st.line_chart(forecast.set_index("datetime")[["temp", "humidity", "rain"]])
+
             else:
-                st.info(alert)
-
-            # -----------------------------------------------------
-            # Interactive Map with Overlays
-            # -----------------------------------------------------
-            st.subheader("🗺️ City Location & Live Weather Layers")
-
-            m = folium.Map(location=[lat, lon], zoom_start=6)
-
-            # 🛰️ Base Layers
-            folium.TileLayer("OpenStreetMap", name="OSM").add_to(m)
-            folium.TileLayer(
-                tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                attr="Esri", name="Esri Satellite", overlay=False, control=True
-            ).add_to(m)
-            folium.TileLayer(
-                tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-                attr="Esri", name="Esri Terrain", overlay=False, control=True
-            ).add_to(m)
-
-            # 🌥️ Cloud overlay
-            folium.TileLayer(
-                tiles=f"https://tile.openweathermap.org/map/clouds_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
-                attr="OpenWeatherMap", name="Clouds", overlay=True, control=True, opacity=0.6
-            ).add_to(m)
-
-            # 🌧️ Rain overlay
-            folium.TileLayer(
-                tiles=f"https://tile.openweathermap.org/map/precipitation_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
-                attr="OpenWeatherMap", name="Precipitation", overlay=True, control=True, opacity=0.6
-            ).add_to(m)
-
-            # 💨 Wind overlay
-            folium.TileLayer(
-                tiles=f"https://tile.openweathermap.org/map/wind_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
-                attr="OpenWeatherMap", name="Wind", overlay=True, control=True, opacity=0.6
-            ).add_to(m)
-
-            # Marker
-            popup_html = f"""
-                <div style="text-align:center;">
-                    <h4>{city}</h4>
-                    <img src="{icon_url}" width="60"><br>
-                    🌡️ {temp:.1f} °C<br>
-                    💧 {humidity}%<br>
-                    🌧️ {rain} mm<br>
-                    ☁️ {weather}
-                </div>
-            """
-            folium.Marker(
-                [lat, lon],
-                tooltip=f"{city}: {weather}, {temp}°C",
-                popup=folium.Popup(popup_html, max_width=250),
-                icon=folium.Icon(color="blue", icon="cloud")
-            ).add_to(m)
-
-            folium.LayerControl().add_to(m)
-            st_folium(m, width=700, height=500)
-
-            # -----------------------------------------------------
-            # 5-Day / 3-Hour Forecast
-            # -----------------------------------------------------
-            st.subheader("📊 5-Day / 3-Hour Forecast")
-
-            forecast_df = service.get_forecast(lat, lon)
-
-            if forecast_df is not None:
-                forecast_df["datetime"] = pd.to_datetime(forecast_df["datetime"])
-                forecast_df = forecast_df.set_index("datetime")
-
-                st.line_chart(forecast_df[["temp"]], height=300, use_container_width=True)
-                st.bar_chart(forecast_df[["rain"]], height=300, use_container_width=True)
-
-                # Add icons
-                def add_icon(row):
-                    return f'<img src="http://openweathermap.org/img/wn/{row["icon"]}.png" width="35"> {row["condition"].title()}'
-
-                df_display = forecast_df.copy()
-                df_display["Weather"] = df_display.apply(add_icon, axis=1)
-
-                st.markdown("### Forecast Table")
-                st.write(
-                    df_display[["temp", "humidity", "rain", "Weather"]].head(12).to_html(escape=False),
-                    unsafe_allow_html=True
-                )
-            else:
-                st.warning("⚠️ Forecast data not available.")
+                st.error("❌ Could not fetch current weather data. Try another city.")
         else:
-            st.error("❌ Could not fetch current weather data.")
-    else:
-        st.warning("⚠️ No city found, please try again.")
+            st.error("❌ City not found. Please enter a valid name.")
