@@ -5,6 +5,7 @@ from backend.weather_service import WeatherService
 from backend.utils import flood_risk_alert
 import hashlib
 import os
+import csv
 
 # -------------------- CONFIG --------------------
 st.set_page_config(page_title="AI Weather Dashboard", layout="wide")
@@ -34,10 +35,12 @@ def add_user(email, password, users_df):
 
 # -------------------- LOAD USERS --------------------
 if not os.path.exists("users.csv") or os.stat("users.csv").st_size == 0:
-    users_df = pd.DataFrame(columns=["email","password"])
-    users_df.to_csv("users.csv", index=False)
-else:
-    users_df = pd.read_csv("users.csv")
+    # Create file with headers if it doesn't exist or is empty
+    with open("users.csv", mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["email", "password"])
+
+users_df = pd.read_csv("users.csv")
 
 # -------------------- NAVIGATION --------------------
 menu = ["Home", "Sign Up / Login", "Current Weather", "Map", "Forecast", "About"]
