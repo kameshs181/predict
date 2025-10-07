@@ -5,6 +5,8 @@ from backend.weather_service import WeatherService
 from backend.utils import flood_risk_alert
 from streamlit_lottie import st_lottie
 import hashlib, os, csv, requests
+from streamlit_autorefresh import st_autorefresh
+import time
 
 # -------------------- PAGE CONFIG --------------------
 st.set_page_config(
@@ -22,25 +24,23 @@ body {font-family:'Segoe UI', sans-serif; transition: background 1s ease;}
 .metric-text {font-size:1.6rem; font-weight:bold; color:#0a2463;}
 h1,h2,h3{color:#0a2463;}
 .stButton>button{background-color:#0a2463; color:white; border-radius:10px; padding:10px 20px; font-weight:bold;}
-.section {padding-top:50px; padding-bottom:50px;}
+.section {opacity:0; transform:translateY(50px); transition: all 1s ease; margin-bottom:50px;}
+.section.visible {opacity:1; transform:translateY(0);}
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------- HELPER FUNCTIONS --------------------
 def hash_password(password): return hashlib.sha256(password.encode()).hexdigest()
-
 def check_credentials(email, password, users_df):
     hashed = hash_password(password)
     user_row = users_df[users_df['email'] == email]
     return not user_row.empty and user_row.iloc[0]['password'] == hashed
-
 def add_user(email, password, users_df):
     hashed = hash_password(password)
     if email in users_df['email'].values: return False
     users_df.loc[len(users_df)] = [email, hashed]
     users_df.to_csv("users.csv", index=False)
     return True
-
 def load_lottieurl(url):
     r = requests.get(url)
     if r.status_code != 200: return None
@@ -59,10 +59,10 @@ except pd.errors.EmptyDataError:
     users_df.to_csv(users_file,index=False)
 
 # -------------------- HERO SECTION --------------------
-st.markdown("<div class='section' style='background-image:url(https://images.unsplash.com/photo-1501973801540-537f08ccae7f?auto=format&fit=crop&w=1650&q=80); background-size:cover; border-radius:15px; padding:80px; color:white; text-align:center;'><h1>🌦️ AI Weather & Disaster Forecast</h1><p style='font-size:1.3rem;'>Real-time weather, forecasts, and disaster alerts</p></div>",unsafe_allow_html=True)
+st.markdown("<div class='section visible' style='background-image:url(https://images.unsplash.com/photo-1501973801540-537f08ccae7f?auto=format&fit=crop&w=1650&q=80); background-size:cover; border-radius:15px; padding:80px; color:white; text-align:center;'><h1>🌦️ AI Weather & Disaster Forecast</h1><p style='font-size:1.3rem;'>Real-time weather, forecasts, and disaster alerts</p></div>",unsafe_allow_html=True)
 
 # -------------------- LOGIN / SIGN UP --------------------
-st.markdown("<div class='section'><h2>🔑 Login / Sign Up</h2></div>",unsafe_allow_html=True)
+st.markdown("<div class='section visible'><h2>🔑 Login / Sign Up</h2></div>",unsafe_allow_html=True)
 auth_choice = st.radio("Choose Action", ["Login", "Sign Up"], horizontal=True)
 if auth_choice == "Login":
     st.text_input("Email", key="email")
@@ -95,13 +95,16 @@ if "logged_in" in st.session_state and st.session_state.logged_in:
     weather_service = WeatherService(API_KEY)
     city = st.text_input("Enter City","Chennai",key="city_input")
 
+    # Auto-refresh every 60 seconds
+    st_autorefresh(interval=60*1000, key="weather_refresh")
+
     if city:
         lat, lon, city_name = weather_service.get_coordinates(city)
         current = weather_service.get_current_weather(lat, lon) if lat else None
         forecast = weather_service.get_forecast(lat, lon) if lat else None
 
         if current:
-            # -------------------- CREATIVE DYNAMIC BACKGROUND --------------------
+            # -------------------- CREATIVE DYNAMIC BACKGROUND & LOTTIE --------------------
             weather_main = current.get("weather","Clear").lower()
             if "rain" in weather_main:
                 st.markdown('<body style="background: linear-gradient(120deg,#74c0fc,#4dabf7);">', unsafe_allow_html=True)
@@ -116,51 +119,54 @@ if "logged_in" in st.session_state and st.session_state.logged_in:
                 st.markdown('<body style="background: linear-gradient(120deg,#ffd166,#ff6b6b);">', unsafe_allow_html=True)
                 lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_iwmd6pyr.json") # sun
 
-            # -------------------- CURRENT WEATHER WITH LOTTIE --------------------
-            st.markdown("<div class='section'><h2>☀️ Current Weather</h2></div>",unsafe_allow_html=True)
+            # -------------------- CURRENT WEATHER --------------------
+            st.markdown("<div class='section visible'><h2>☀️ Current Weather</h2></div>",unsafe_allow_html=True)
             col_lottie, col1, col2, col3, col4 = st.columns([2,1,1,1,1])
             with col_lottie:
                 st_lottie(lottie_weather, height=200, key="weather_lottie")
 
-            temp = int(round(current["temp"]))
-            col1.metric("🌡️ Temp", f"{temp}°C")
+            # -------------------- LIVE METRICS --------------------
+            col1.metric("🌡️ Temp", f"{int(current['temp'])}°C")
             col2.metric("💧 Humidity", f"{current['humidity']}%")
             col3.metric("🌧️ Rain", f"{current.get('rain',0)} mm")
             col4.metric("💨 Wind", f"{current.get('wind',0)} m/s")
 
             # -------------------- DISASTER ALERTS --------------------
-            st.markdown("<div class='section'><h2>🚨 Disaster Alerts</h2></div>",unsafe_allow_html=True)
+            st.markdown("<div class='section visible'><h2>🚨 Disaster Alerts</h2></div>",unsafe_allow_html=True)
             flood_alert = flood_risk_alert(current["humidity"], current["rain"])
             if "High" in flood_alert: st.error(flood_alert)
             elif "Moderate" in flood_alert: st.warning(flood_alert)
             else: st.success(flood_alert)
 
-            # -------------------- MAP --------------------
-            st.markdown("<div class='section'><h2>🗺️ Interactive Map</h2></div>",unsafe_allow_html=True)
+            # -------------------- INTERACTIVE MAP --------------------
+            st.markdown("<div class='section visible'><h2>🗺️ Interactive Map</h2></div>",unsafe_allow_html=True)
             layers = [
                 pdk.Layer("TileLayer", data=None, tile_size=256,
-                          get_tile_url=f"https://tile.openweathermap.org/map/clouds_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",opacity=0.5),
+                          get_tile_url=f"https://tile.openweathermap.org/map/clouds_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                          opacity=0.5),
                 pdk.Layer("TileLayer", data=None, tile_size=256,
-                          get_tile_url=f"https://tile.openweathermap.org/map/wind_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",opacity=0.6),
+                          get_tile_url=f"https://tile.openweathermap.org/map/precipitation_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                          opacity=0.6),
                 pdk.Layer("TileLayer", data=None, tile_size=256,
-                          get_tile_url=f"https://tile.openweathermap.org/map/precipitation_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",opacity=0.7),
+                          get_tile_url=f"https://tile.openweathermap.org/map/wind_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                          opacity=0.6),
                 pdk.Layer("ScatterplotLayer", data=pd.DataFrame([{"lat":lat,"lon":lon}]),
-                          get_position=["lon","lat"], get_color=[255,0,0], get_radius=7000)
+                          get_position=["lon", "lat"], get_color=[255,0,0], get_radius=10000)
             ]
             st.pydeck_chart(pdk.Deck(
-                map_style="mapbox://styles/mapbox/satellite-streets-v12",
-                initial_view_state=pdk.ViewState(latitude=lat,longitude=lon,zoom=6,pitch=45),
+                map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+                initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=6, pitch=45),
                 layers=layers
             ))
 
-            # -------------------- FORECAST --------------------
-            st.markdown("<div class='section'><h2>📈 5-Day Forecast</h2></div>",unsafe_allow_html=True)
+            # -------------------- 5-DAY FORECAST --------------------
+            st.markdown("<div class='section visible'><h2>📈 5-Day Forecast</h2></div>",unsafe_allow_html=True)
             if forecast is not None:
                 st.line_chart(forecast.set_index("datetime")[["temp","humidity","rain"]])
 
 # -------------------- ABOUT --------------------
-st.markdown("<div class='section'><h2>ℹ️ About This Project</h2></div>",unsafe_allow_html=True)
+st.markdown("<div class='section visible'><h2>ℹ️ About This Project</h2></div>",unsafe_allow_html=True)
 st.markdown("""
 Developed by [Your Name].  
-Professional AI Weather Forecast & Disaster Alert Dashboard with creative backgrounds, Lottie animations, and interactive UI/UX.
+Professional AI Weather Forecast & Disaster Alert Dashboard with **creative backgrounds, Lottie animations, interactive map, auto-refresh live metrics, and slide-in UI/UX**.
 """)
