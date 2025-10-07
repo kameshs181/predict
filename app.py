@@ -33,7 +33,7 @@ def add_user(email, password, users_df):
     return True
 
 # -------------------- LOAD USERS --------------------
-if not os.path.exists("users.csv"):
+if not os.path.exists("users.csv") or os.stat("users.csv").st_size == 0:
     users_df = pd.DataFrame(columns=["email","password"])
     users_df.to_csv("users.csv", index=False)
 else:
