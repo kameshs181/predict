@@ -6,7 +6,6 @@ import hashlib, os, csv, requests
 from backend.weather_service import WeatherService
 from backend.utils import flood_risk_alert
 from streamlit_autorefresh import st_autorefresh
-from pydeck import AmbientLight, LightingEffect
 
 # -------------------- PAGE CONFIG --------------------
 st.set_page_config(
@@ -187,13 +186,11 @@ if "logged_in" in st.session_state and st.session_state.logged_in:
                 )
             ]
 
-            ambient_light = AmbientLight(color=[255,255,255], intensity=0.8)
             deck = pdk.Deck(
                 map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
                 initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=6, pitch=45),
                 layers=layers,
-                effects=[LightingEffect(ambient_light)],
-                tooltip={"text": "City: {}\nTemp: {}°C".format(city_name, int(current['temp']))}
+                tooltip={"text": f"City: {city_name}\nTemp: {int(current['temp'])}°C"}
             )
             st.pydeck_chart(deck)
 
