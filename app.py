@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
-from backend.weather_service import WeatherService
-from backend.utils import flood_risk_alert
 from streamlit_lottie import st_lottie
 import hashlib, os, csv, requests
+from backend.weather_service import WeatherService
+from backend.utils import flood_risk_alert
 from streamlit_autorefresh import st_autorefresh
-import time
+from pydeck import AmbientLight, LightingEffect
 
 # -------------------- PAGE CONFIG --------------------
 st.set_page_config(
@@ -29,7 +29,7 @@ h1,h2,h3{color:#0a2463;}
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------- HELPER FUNCTIONS --------------------
+# -------------------- HELPERS --------------------
 def hash_password(password): return hashlib.sha256(password.encode()).hexdigest()
 def check_credentials(email, password, users_df):
     hashed = hash_password(password)
@@ -46,7 +46,7 @@ def load_lottieurl(url):
     if r.status_code != 200: return None
     return r.json()
 
-# -------------------- LOAD USERS --------------------
+# -------------------- USERS --------------------
 users_file = "users.csv"
 if not os.path.exists(users_file) or os.stat(users_file).st_size == 0:
     with open(users_file, mode="w", newline="") as f:
@@ -58,7 +58,7 @@ except pd.errors.EmptyDataError:
     users_df = pd.DataFrame(columns=["email","password"])
     users_df.to_csv(users_file,index=False)
 
-# -------------------- HERO SECTION --------------------
+# -------------------- HERO --------------------
 st.markdown("<div class='section visible' style='background-image:url(https://images.unsplash.com/photo-1501973801540-537f08ccae7f?auto=format&fit=crop&w=1650&q=80); background-size:cover; border-radius:15px; padding:80px; color:white; text-align:center;'><h1>🌦️ AI Weather & Disaster Forecast</h1><p style='font-size:1.3rem;'>Real-time weather, forecasts, and disaster alerts</p></div>",unsafe_allow_html=True)
 
 # -------------------- LOGIN / SIGN UP --------------------
@@ -104,20 +104,20 @@ if "logged_in" in st.session_state and st.session_state.logged_in:
         forecast = weather_service.get_forecast(lat, lon) if lat else None
 
         if current:
-            # -------------------- CREATIVE DYNAMIC BACKGROUND & LOTTIE --------------------
+            # -------------------- BACKGROUND & LOTTIE --------------------
             weather_main = current.get("weather","Clear").lower()
             if "rain" in weather_main:
                 st.markdown('<body style="background: linear-gradient(120deg,#74c0fc,#4dabf7);">', unsafe_allow_html=True)
-                lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_jh8c1c6f.json") # rain
+                lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_jh8c1c6f.json")
             elif "cloud" in weather_main:
                 st.markdown('<body style="background: linear-gradient(120deg,#d3d3d3,#868e96);">', unsafe_allow_html=True)
-                lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_XM2oVv.json") # cloud
+                lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_XM2oVv.json")
             elif "storm" in weather_main:
                 st.markdown('<body style="background: linear-gradient(120deg,#6c757d,#495057);">', unsafe_allow_html=True)
-                lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_svy4ivvy.json") # storm
+                lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_svy4ivvy.json")
             else:
                 st.markdown('<body style="background: linear-gradient(120deg,#ffd166,#ff6b6b);">', unsafe_allow_html=True)
-                lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_iwmd6pyr.json") # sun
+                lottie_weather = load_lottieurl("https://assets3.lottiefiles.com/packages/lf20_iwmd6pyr.json")
 
             # -------------------- CURRENT WEATHER --------------------
             st.markdown("<div class='section visible'><h2>☀️ Current Weather</h2></div>",unsafe_allow_html=True)
@@ -125,7 +125,7 @@ if "logged_in" in st.session_state and st.session_state.logged_in:
             with col_lottie:
                 st_lottie(lottie_weather, height=200, key="weather_lottie")
 
-            # -------------------- LIVE METRICS --------------------
+            # Metrics
             col1.metric("🌡️ Temp", f"{int(current['temp'])}°C")
             col2.metric("💧 Humidity", f"{current['humidity']}%")
             col3.metric("🌧️ Rain", f"{current.get('rain',0)} mm")
@@ -138,26 +138,64 @@ if "logged_in" in st.session_state and st.session_state.logged_in:
             elif "Moderate" in flood_alert: st.warning(flood_alert)
             else: st.success(flood_alert)
 
-            # -------------------- INTERACTIVE MAP --------------------
+            # -------------------- HIGH-QUALITY INTERACTIVE MAP --------------------
             st.markdown("<div class='section visible'><h2>🗺️ Interactive Map</h2></div>",unsafe_allow_html=True)
+
             layers = [
-                pdk.Layer("TileLayer", data=None, tile_size=256,
-                          get_tile_url=f"https://tile.openweathermap.org/map/clouds_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
-                          opacity=0.5),
-                pdk.Layer("TileLayer", data=None, tile_size=256,
-                          get_tile_url=f"https://tile.openweathermap.org/map/precipitation_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
-                          opacity=0.6),
-                pdk.Layer("TileLayer", data=None, tile_size=256,
-                          get_tile_url=f"https://tile.openweathermap.org/map/wind_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
-                          opacity=0.6),
-                pdk.Layer("ScatterplotLayer", data=pd.DataFrame([{"lat":lat,"lon":lon}]),
-                          get_position=["lon", "lat"], get_color=[255,0,0], get_radius=10000)
+                pdk.Layer(
+                    "TileLayer",
+                    data=None,
+                    tile_size=256,
+                    get_tile_url=f"https://tile.openweathermap.org/map/clouds_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                    opacity=0.5
+                ),
+                pdk.Layer(
+                    "TileLayer",
+                    data=None,
+                    tile_size=256,
+                    get_tile_url=f"https://tile.openweathermap.org/map/precipitation_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                    opacity=0.6
+                ),
+                pdk.Layer(
+                    "TileLayer",
+                    data=None,
+                    tile_size=256,
+                    get_tile_url=f"https://tile.openweathermap.org/map/wind_new/{{z}}/{{x}}/{{y}}.png?appid={API_KEY}",
+                    opacity=0.6
+                ),
+                # City marker
+                pdk.Layer(
+                    "ScatterplotLayer",
+                    data=pd.DataFrame([{"lat": lat, "lon": lon}]),
+                    get_position=["lon", "lat"],
+                    get_color=[255, 0, 0],
+                    get_radius=20000,
+                    pickable=True,
+                    auto_highlight=True
+                ),
+                # 3D temperature column
+                pdk.Layer(
+                    "ColumnLayer",
+                    data=pd.DataFrame([{"lat": lat, "lon": lon, "temp": current["temp"]}]),
+                    get_position=["lon", "lat"],
+                    get_elevation="temp*500",
+                    elevation_scale=50,
+                    radius=20000,
+                    get_fill_color=[255,100,100],
+                    pickable=True,
+                    auto_highlight=True
+                )
             ]
-            st.pydeck_chart(pdk.Deck(
-                map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+
+            ambient_light = AmbientLight(color=[255,255,255], intensity=0.8)
+            deck = pdk.Deck(
+                map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
                 initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=6, pitch=45),
-                layers=layers
-            ))
+                layers=layers,
+                effects=[LightingEffect(ambient_light)],
+                tooltip={"text": "City: {}\nTemp: {}°C".format(city_name, int(current['temp']))}
+            )
+            st.pydeck_chart(deck)
 
             # -------------------- 5-DAY FORECAST --------------------
             st.markdown("<div class='section visible'><h2>📈 5-Day Forecast</h2></div>",unsafe_allow_html=True)
@@ -168,5 +206,5 @@ if "logged_in" in st.session_state and st.session_state.logged_in:
 st.markdown("<div class='section visible'><h2>ℹ️ About This Project</h2></div>",unsafe_allow_html=True)
 st.markdown("""
 Developed by [Your Name].  
-Professional AI Weather Forecast & Disaster Alert Dashboard with **creative backgrounds, Lottie animations, interactive map, auto-refresh live metrics, and slide-in UI/UX**.
+Professional AI Weather Forecast & Disaster Alert Dashboard with **high-quality map, 3D markers, slide-in UI/UX, live metrics, Lottie animations, and disaster alerts**.
 """)
