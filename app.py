@@ -33,14 +33,19 @@ def add_user(email, password, users_df):
     users_df.to_csv("users.csv", index=False)
     return True
 
-# -------------------- LOAD USERS --------------------
-if not os.path.exists("users.csv") or os.stat("users.csv").st_size == 0:
-    # Create file with headers if it doesn't exist or is empty
-    with open("users.csv", mode="w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["email", "password"])
+# -------------------- LOAD USERS SAFELY --------------------
+users_file = "users.csv"
 
-users_df = pd.read_csv("users.csv")
+if not os.path.exists(users_file) or os.stat(users_file).st_size == 0:
+    with open(users_file, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["email", "password"])  # headers only
+
+try:
+    users_df = pd.read_csv(users_file)
+except pd.errors.EmptyDataError:
+    users_df = pd.DataFrame(columns=["email", "password"])
+    users_df.to_csv(users_file, index=False)
 
 # -------------------- NAVIGATION --------------------
 menu = ["Home", "Sign Up / Login", "Current Weather", "Map", "Forecast", "About"]
